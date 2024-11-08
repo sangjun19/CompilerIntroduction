@@ -1,0 +1,17 @@
+fn main() {
+    let a = 10;
+    foo(a);
+    return 0;
+}
+
+fn foo(num:u32) -> u32 {
+    let mut result = 0;
+    for i in 0..10 {
+        if (i > (num / 2)) {
+            println!(i);
+            result = i;
+            break;
+        }
+    }
+    return i;
+}
