@@ -6,9 +6,10 @@ public class Test {
     }
 
     public static int cal(int a, int b) {
-        if (a <= 1) return 0;
-        else if (a == b) return 1;
-        return (a * b - 2) / 3;
+        if (a <= 1 || a != 0) a = 0;
+        if (b <= 1 && b != 0) b = 0;
+        int c = a + b;
+        return c;
     }
 
     public static void main(String[] args) {
