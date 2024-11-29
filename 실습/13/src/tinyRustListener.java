@@ -222,7 +222,7 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
                 case ">" -> op = "<=";
                 case ">=" -> op = "<";
                 case "==" -> op = "!=";
-                case "!=" -> op = "== ";
+                case "!=" -> op = "==";
             }
         }
         switch (op) {
@@ -255,7 +255,7 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
             if(Objects.equals(op, "||")) {
                 int temp = labelCnt - 1;
                 if(firstOr > 0) {
-                    temp--;
+//                    temp--;
                 }
                 result += relative_expr + comparative_expr + "L" + temp + ":\n";
             }
@@ -278,6 +278,10 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
 
     @Override public void exitAssignment_stmt(tinyRustParser.Assignment_stmtContext ctx) {
         String expr = rustTree.get(ctx.expr());
+        String id = rustTree.get(ctx.id());
+        String result = "";
+        if(localVarMap.containsKey(id)) result = "istore_" + getLocalVarTableIdx(id);
+        expr += result + "\n";
         rustTree.put(ctx, expr);
     }
 

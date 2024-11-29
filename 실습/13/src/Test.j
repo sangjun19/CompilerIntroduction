@@ -15,23 +15,17 @@ bipush 10
 istore_0
 bipush 5
 istore_1
-bipush 0
-istore_2
-iload_0
-istore_3
 iload_1
 bipush 10
 if_icmpne L1
 iload_1
-bipush 3
-if_icmpne L1
-iload_1
-bipush 5
-if_icmpne L1
+bipush 0
+if_icmplt L2
+L1:
 getstatic java/lang/System/out Ljava/io/PrintStream;
 iload_1
 invokevirtual java/io/PrintStream.println(I)V
-L1:
+L2:
 return
 
 .end method
