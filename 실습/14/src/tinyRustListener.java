@@ -18,6 +18,9 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
     static int labelCnt = 1;
     static int compareType = 0;
     static int firstOr = 0;
+    static String for_id = "";
+    static int isLoop = 0;
+    static int paramCnt = 0;
 
     private static void assignLocalVar(String VarName){
         if(!(localVarMap.containsKey(VarName))) localVarMap.put(VarName, localVar_curIdx);
@@ -76,7 +79,12 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
 
     @Override public void exitDecl(tinyRustParser.DeclContext ctx) {
         String main_decl = rustTree.get(ctx.main_decl());
-        rustTree.put(ctx, main_decl);
+        if(main_decl!= null) rustTree.put(ctx, main_decl);
+        String fun_decl = rustTree.get(ctx.fun_decl());
+        if(fun_decl != null) rustTree.put(ctx, fun_decl);
+        localVar_curIdx = 0;
+        localVarMap = new HashMap<>();
+
     }
 
     @Override public void enterMain_decl(tinyRustParser.Main_declContext ctx) {
@@ -95,7 +103,29 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
 
     @Override public void exitMain_decl(tinyRustParser.Main_declContext ctx) {
         String compound_stmt = rustTree.get(ctx.compound_stmt());
-        rustTree.put(ctx, compound_stmt + "\n" + ".end method\n\n");
+        rustTree.put(ctx, compound_stmt + ".end method\n\n");
+    }
+
+    @Override public void enterParam(tinyRustParser.ParamContext ctx) {
+        paramCnt = ctx.getChildCount() - ctx.getChildCount() / 2;
+        assignLocalVar(ctx.id().getText());
+    }
+
+    @Override public void exitFun_decl(tinyRustParser.Fun_declContext ctx) {
+        String result = "";
+        String id = ctx.id().getText();
+        String compound_stmt = rustTree.get(ctx.compound_stmt());
+        result += ".method public static " + id;
+        result += "(";
+        for(int i = 0; i < paramCnt; i++) {
+            result += "I";
+        }
+        result += ")I\n";
+        result += ".limit stack 32\n";
+        result += ".limit locals 32\n";
+        result += compound_stmt;
+        result += ".end method\n\n";
+        rustTree.put(ctx, result);
     }
 
     @Override public void exitCompound_stmt(tinyRustParser.Compound_stmtContext ctx) {
@@ -145,6 +175,10 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
             result = rustTree.get(ctx.print_stmt());
         else if(ctx.if_stmt() != null)
             result = rustTree.get(ctx.if_stmt());
+        else if(ctx.for_stmt() != null)
+            result = rustTree.get(ctx.for_stmt());
+        else if(ctx.loop_stmt() != null)
+            result = rustTree.get(ctx.loop_stmt());
         rustTree.put(ctx, result);
     }
 
@@ -205,6 +239,10 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
         rustTree.put(ctx, result + "\n");
     }
 
+    @Override public void enterLoop_stmt(tinyRustParser.Loop_stmtContext ctx) {
+        isLoop = 1;
+    }
+
     //Todo
     @Override public void exitComparative_expr(tinyRustParser.Comparative_exprContext ctx) {
         if(ctx.getChildCount() == 1) {
@@ -234,9 +272,9 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
             case "!=" -> op = "if_icmpeq ";
         }
 //        int temp = labelCnt + compareType;
-        result = left + right + op + "L" + labelCnt + "\n";
+        if(isLoop == 1) result = left + right + op + "L" + labelCnt + "\ngoto L" + (labelCnt + 2) + "\n";
+        else result = left + right + op + "L" + labelCnt + "\n";
         rustTree.put(ctx, result);
-//        System.out.println(compareType);
         if(compareType > 0) {
             labelCnt++;
             compareType--;
@@ -278,11 +316,8 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
 
     @Override public void exitAssignment_stmt(tinyRustParser.Assignment_stmtContext ctx) {
         String expr = rustTree.get(ctx.expr());
-        String id = rustTree.get(ctx.id());
-        String result = "";
-        if(localVarMap.containsKey(id)) result = "istore_" + getLocalVarTableIdx(id);
-        expr += result + "\n";
-        rustTree.put(ctx, expr);
+        String result = expr + "istore_" + getLocalVarTableIdx(rustTree.get(ctx.id())) + "\n";
+        rustTree.put(ctx, result);
     }
 
     @Override
@@ -294,7 +329,12 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
     }
 
     @Override public void exitReturn_stmt(tinyRustParser.Return_stmtContext ctx) {
-        rustTree.put(ctx, "return\n");
+        if(ctx.getChildCount() == 2) rustTree.put(ctx, "return\n");
+        else rustTree.put(ctx, rustTree.get(ctx.expr()) + "ireturn\n");
+    }
+
+    @Override public void exitRet_type_spec(tinyRustParser.Ret_type_specContext ctx) {
+        rustTree.put(ctx, "ireturn\n");
     }
 
     @Override public void exitLiteral(tinyRustParser.LiteralContext ctx) {
@@ -317,5 +357,46 @@ public class tinyRustListener extends tinyRustBaseListener implements ParseTreeL
         labelCnt++;
         rustTree.put(ctx, result);
         compareType = 0;
+    }
+
+    @Override public void exitFor_stmt(tinyRustParser.For_stmtContext ctx) {
+        String result = "";
+        String range = rustTree.get(ctx.range());
+        String compound_stmt = rustTree.get(ctx.compound_stmt());
+        result += range + compound_stmt + "goto L" + labelCnt + "\n";
+        labelCnt++;
+        result += "L" + labelCnt + ":\n";
+        rustTree.put(ctx, result);
+    }
+
+    @Override public void enterFor_stmt(tinyRustParser.For_stmtContext ctx) {
+        for_id = ctx.id().getText();
+        assignLocalVar(for_id);
+    }
+
+    @Override public void exitRange(tinyRustParser.RangeContext ctx) {
+        String result = "";
+        String literal1 = rustTree.get(ctx.literal(0));
+        String literal2 = rustTree.get(ctx.literal(1));
+        result += "bipush " + literal1 + "\n";
+        result += "istore_" + getLocalVarTableIdx(for_id) + "\n";
+        result += "L" + labelCnt + ":\n";
+        result += "iload_" + getLocalVarTableIdx(for_id) + "\n";
+        result += "bipush " + literal2 + "\n";
+        int temp = labelCnt + 1;
+        result += "if_icmpge L" + temp + "\n";
+        rustTree.put(ctx, result);
+    }
+
+    @Override public void exitLoop_stmt(tinyRustParser.Loop_stmtContext ctx) {
+        String result = "";
+        String compound_stmt = rustTree.get(ctx.compound_stmt());
+        result += "L" + labelCnt + ":\n";
+        result += compound_stmt;
+        result += "goto L" + labelCnt + "\n";
+        labelCnt++;
+        result += "L" + labelCnt + ":\n";
+        rustTree.put(ctx, result);
+        isLoop = 0;
     }
 }
